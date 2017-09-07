@@ -17,6 +17,7 @@ package com.example.android.quakereport;
 
 import android.content.Intent;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
@@ -25,17 +26,20 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class EarthquakeActivity extends AppCompatActivity {
 
     public static final String LOG_TAG = EarthquakeActivity.class.getName();
+
+    private static final String USGS_REQUEST_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&minmag=5&limit=10";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.earthquake_activity);
 
-        final ArrayList<Earthquake> earthquakes = QueryUtils.extractEarthquakes();
+        //final ArrayList<Earthquake> earthquakes = QueryUtils.extractEarthquakes();
 
 //        // Create a fake list of earthquake locations.
 //        final ArrayList<Earthquake> earthquakes = new ArrayList<>();
@@ -47,7 +51,43 @@ public class EarthquakeActivity extends AppCompatActivity {
 //        earthquakes.add(new Earthquake("4.9", "Rio de Janeiro", "Aug 19, 2012"));
 //        earthquakes.add(new Earthquake("1.6", "Paris", "Oct 30, 2011"));
 
-        EarthquakeAdapter earthquakeAdapter = new EarthquakeAdapter(this, earthquakes);
+        new EarthquakeAsyncTask().execute(USGS_REQUEST_URL);
+    }
+
+    /**
+     * {@link AsyncTask} to perform the network request on a background thread, and then update
+     * the UI with the first earthquake in the response
+     */
+    private class EarthquakeAsyncTask extends AsyncTask<String, Void, List<Earthquake>>{
+        /**
+         * This method is invoked on a background thread, so we can perform long-running operations
+         * like making a network request
+         */
+        protected List<Earthquake> doInBackground(String... urls){
+            //Don't perform the request if there are no URLs, or the first URL is null.
+            if(urls.length < 1 || urls[0] == null){
+                return null;
+            }
+            // Perform the HTTP request for earthquake data and process the response.
+            //List<Earthquake> earthquakeList = QueryUtils.fetchEarthquakeData(urls[0]);
+            return QueryUtils.fetchEarthquakeData(urls[0]);
+        }
+
+        protected void onPostExecute(List<Earthquake> result){
+            //If there is no result, do nothing.
+            if(result == null){
+                return;
+            }
+            // Update the information displayed to the user.
+            updateUi(result);
+        }
+    }
+
+    /**
+     * Update the UI with the given earthquake information.
+     */
+    private void updateUi(final List<Earthquake> earthquakeList){
+        EarthquakeAdapter earthquakeAdapter = new EarthquakeAdapter(this, earthquakeList);
 
         ListView listView = (ListView) findViewById(R.id.list);
 
@@ -56,13 +96,12 @@ public class EarthquakeActivity extends AppCompatActivity {
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-                Earthquake curEarthquake = earthquakes.get(i);
+                Earthquake curEarthquake = earthquakeList.get(i);
                 Intent loadPage = new Intent(Intent.ACTION_VIEW, Uri.parse(curEarthquake.getmEarthquakeURL()));
                 if(loadPage.resolveActivity(getPackageManager()) != null){
                     startActivity(loadPage);
                 }
             }
         });
-
     }
 }
